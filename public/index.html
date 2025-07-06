@@ -54,7 +54,7 @@
     </div>
 
     <script>
-        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/.netlify/functions/api';
 
         document.getElementById('createUserForm').addEventListener('submit', async (e) => {
             e.preventDefault();
