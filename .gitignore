@@ -1,0 +1,10 @@
+# Ignore all files in the node_modules directory
+node_modules/
+
+# Ignore all files in the .env file
+.env
+
+# Ignore all files in the .env.local file
+.env.local
+
+# Ignore all files in the .env.development.local file

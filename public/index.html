@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise Tracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        form { display: flex; flex-direction: column; gap: 10px; }
+        input, button { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { padding: 10px; margin-top: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Exercise Tracker</h1>
+    
+    <div class="container">
+        <h2>Create User</h2>
+        <form id="createUserForm">
+            <input type="text" id="username" placeholder="Username" required>
+            <button type="submit">Create User</button>
+        </form>
+        <div id="createUserResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>Add Exercise</h2>
+        <form id="addExerciseForm">
+            <input type="text" id="exerciseUserId" placeholder="User ID" required>
+            <input type="text" id="description" placeholder="Description" required>
+            <input type="number" id="duration" placeholder="Duration (minutes)" required>
+            <input type="date" id="date">
+            <button type="submit">Add Exercise</button>
+        </form>
+        <div id="addExerciseResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>View Log</h2>
+        <form id="viewLogForm">
+            <input type="text" id="logUserId" placeholder="User ID" required>
+            <input type="date" id="fromDate" placeholder="From Date">
+            <input type="date" id="toDate" placeholder="To Date">
+            <input type="number" id="limit" placeholder="Limit">
+            <button type="submit">View Log</button>
+        </form>
+        <div id="exerciseLog"></div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
+
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const resultDiv = document.getElementById('createUserResult');
+            
+            try {
+                const response = await fetch(`${API_BASE}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="result success">User created: ${data.username} (ID: ${data._id})</div>`;
+                    document.getElementById('createUserForm').reset();
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        });
+
+        document.getElementById('addExerciseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('exerciseUserId').value;
+            const description = document.getElementById('description').value;
+            const duration = document.getElementById('duration').value;
+            const date = document.getElementById('date').value;
+            const resultDiv = document.getElementById('addExerciseResult');
+            
+            const exerciseData = { description, duration };
+            if (date) exerciseData.date = date;
+            
+            try {
+                const response = await fetch(`${API_BASE}/users/${userId}/exercises`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exerciseData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="result success">Exercise added: ${data.description} for ${data.duration} minutes on ${data.date}</div>`;
+                    document.getElementById('addExerciseForm').reset();
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        });
+
+        document.getElementById('viewLogForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('logUserId').value;
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            const limit = document.getElementById('limit').value;
+            const logDiv = document.getElementById('exerciseLog');
+            
+            let url = `${API_BASE}/users/${userId}/logs`;
+            const params = new URLSearchParams();
+            if (fromDate) params.append('from', fromDate);
+            if (toDate) params.append('to', toDate);
+            if (limit) params.append('limit', limit);
+            
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    logDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>${data.username}'s Exercise Log (${data.count} exercises)</h3>
+                            ${data.log.map(exercise => 
+                                `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                                    <strong>${exercise.description}</strong><br>
+                                    Duration: ${exercise.duration} minutes<br>
+                                    Date: ${exercise.date}
+                                </div>`
+                            ).join('')}
+                        </div>
+                    `;
+                } else {
+                    logDiv.innerHTML = `<div class="result error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                logDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html> 
