@@ -5,14 +5,18 @@ const cors = require('cors');
 
 const app = express();
 
+// CORS configuration
 app.use(cors({
-  origin: true,
-  credentials: true,
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Import models
 const User = require('../../models/User');
@@ -180,9 +184,6 @@ app.get('/users/:_id/logs', async (req, res) => {
   }
 });
 
-// Handle preflight requests
-app.options('*', cors());
-
 // Health check route
 app.get('/health', (req, res) => {
   res.json({ 
@@ -192,4 +193,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-module.exports.handler = serverless(app); 
+// Test route
+app.get('/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    method: req.method,
+    path: req.path,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Export the handler
+exports.handler = serverless(app); 
