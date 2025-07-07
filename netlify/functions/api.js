@@ -1,6 +1,5 @@
 const serverless = require('serverless-http');
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
@@ -18,55 +17,30 @@ app.use(express.urlencoded({ extended: true }));
 // Handle preflight requests
 app.options('*', cors());
 
-// Import models
-const User = require('../../models/User');
-const Exercise = require('../../models/Exercise');
-
-// Connect to MongoDB with better error handling
-let isConnected = false;
-
-const connectDB = async () => {
-  if (isConnected) return;
-  
-  try {
-    if (!process.env.MONGO_URI) {
-      console.error('MONGO_URI environment variable is not set');
-      return;
-    }
-    
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    isConnected = true;
-    console.log('Connected to MongoDB');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-  }
-};
+// Simple in-memory storage for testing
+let users = [];
+let exercises = [];
 
 // API routes
 app.post('/users', async (req, res) => {
   try {
-    await connectDB();
-    
-    if (!isConnected) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-    
     const { username } = req.body;
     
     if (!username) {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    const existingUser = await User.findOne({ username });
+    const existingUser = users.find(u => u.username === username);
     if (existingUser) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const user = new User({ username });
-    await user.save();
+    const user = {
+      username: username,
+      _id: Date.now().toString()
+    };
+    
+    users.push(user);
 
     res.json({
       username: user.username,
@@ -80,13 +54,6 @@ app.post('/users', async (req, res) => {
 
 app.get('/users', async (req, res) => {
   try {
-    await connectDB();
-    
-    if (!isConnected) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-    
-    const users = await User.find({}, 'username _id');
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -96,12 +63,6 @@ app.get('/users', async (req, res) => {
 
 app.post('/users/:_id/exercises', async (req, res) => {
   try {
-    await connectDB();
-    
-    if (!isConnected) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-    
     const { _id } = req.params;
     const { description, duration, date } = req.body;
 
@@ -109,19 +70,20 @@ app.post('/users/:_id/exercises', async (req, res) => {
       return res.status(400).json({ error: 'Description and duration are required' });
     }
 
-    const user = await User.findById(_id);
+    const user = users.find(u => u._id === _id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const exercise = new Exercise({
+    const exercise = {
       userId: _id,
       description,
       duration: parseInt(duration),
-      date: date ? new Date(date) : new Date()
-    });
+      date: date ? new Date(date) : new Date(),
+      _id: Date.now().toString()
+    };
 
-    await exercise.save();
+    exercises.push(exercise);
 
     res.json({
       username: user.username,
@@ -138,35 +100,30 @@ app.post('/users/:_id/exercises', async (req, res) => {
 
 app.get('/users/:_id/logs', async (req, res) => {
   try {
-    await connectDB();
-    
-    if (!isConnected) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-    
     const { _id } = req.params;
     const { from, to, limit } = req.query;
 
-    const user = await User.findById(_id);
+    const user = users.find(u => u._id === _id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    let query = { userId: _id };
+    let userExercises = exercises.filter(e => e.userId === _id);
 
     if (from || to) {
-      query.date = {};
-      if (from) query.date.$gte = new Date(from);
-      if (to) query.date.$lte = new Date(to);
+      userExercises = userExercises.filter(exercise => {
+        const exerciseDate = new Date(exercise.date);
+        if (from && exerciseDate < new Date(from)) return false;
+        if (to && exerciseDate > new Date(to)) return false;
+        return true;
+      });
     }
-
-    let exercises = await Exercise.find(query).sort({ date: 1 });
 
     if (limit) {
-      exercises = exercises.slice(0, parseInt(limit));
+      userExercises = userExercises.slice(0, parseInt(limit));
     }
 
-    const log = exercises.map(exercise => ({
+    const log = userExercises.map(exercise => ({
       description: exercise.description,
       duration: exercise.duration,
       date: exercise.date.toDateString()
@@ -174,7 +131,7 @@ app.get('/users/:_id/logs', async (req, res) => {
 
     res.json({
       username: user.username,
-      count: exercises.length,
+      count: userExercises.length,
       _id: user._id,
       log
     });
@@ -189,7 +146,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    mongoConnected: isConnected
+    message: 'API is working with in-memory storage'
   });
 });
 
