@@ -11,7 +11,16 @@ exports.handler = async function(event, context) {
   let parsedBody = {};
   if (body) {
     try {
-      parsedBody = JSON.parse(body);
+      // Handle both JSON and form data
+      if (body.startsWith('{')) {
+        parsedBody = JSON.parse(body);
+      } else {
+        // Handle form data
+        const formData = new URLSearchParams(body);
+        for (let [key, value] of formData.entries()) {
+          parsedBody[key] = value;
+        }
+      }
     } catch (e) {
       console.error('Error parsing body:', e);
     }
@@ -70,6 +79,8 @@ exports.handler = async function(event, context) {
   
   if (path === '/api/users' && httpMethod === 'POST') {
     try {
+      console.log('Received body:', body);
+      console.log('Parsed body:', parsedBody);
       const { username } = parsedBody;
       
       if (!username) {
