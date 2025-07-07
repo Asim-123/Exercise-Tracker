@@ -5,7 +5,12 @@ const cors = require('cors');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -174,6 +179,9 @@ app.get('/users/:_id/logs', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Health check route
 app.get('/health', (req, res) => {
