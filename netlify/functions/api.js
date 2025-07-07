@@ -1,164 +1,237 @@
-const serverless = require('serverless-http');
-const express = require('express');
-const cors = require('cors');
-
-const app = express();
-
-// CORS configuration
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Handle preflight requests
-app.options('*', cors());
-
 // Simple in-memory storage for testing
 let users = [];
 let exercises = [];
 
-// API routes
-app.post('/users', async (req, res) => {
-  try {
-    const { username } = req.body;
-    
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required' });
+exports.handler = async function(event, context) {
+  console.log('API function called with event:', event);
+  
+  const { httpMethod, path, body, queryStringParameters } = event;
+  
+  // Parse body if it exists
+  let parsedBody = {};
+  if (body) {
+    try {
+      parsedBody = JSON.parse(body);
+    } catch (e) {
+      console.error('Error parsing body:', e);
     }
-
-    const existingUser = users.find(u => u.username === username);
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
-    }
-
-    const user = {
-      username: username,
-      _id: Date.now().toString()
+  }
+  
+  // Set CORS headers
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+  };
+  
+  // Handle preflight requests
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ message: 'Preflight successful' })
     };
-    
-    users.push(user);
-
-    res.json({
-      username: user.username,
-      _id: user._id
-    });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Server error' });
   }
-});
-
-app.get('/users', async (req, res) => {
-  try {
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/users/:_id/exercises', async (req, res) => {
-  try {
-    const { _id } = req.params;
-    const { description, duration, date } = req.body;
-
-    if (!description || !duration) {
-      return res.status(400).json({ error: 'Description and duration are required' });
-    }
-
-    const user = users.find(u => u._id === _id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const exercise = {
-      userId: _id,
-      description,
-      duration: parseInt(duration),
-      date: date ? new Date(date) : new Date(),
-      _id: Date.now().toString()
+  
+  // Route handling
+  if (path === '/api/health') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        message: 'API is working with in-memory storage'
+      })
     };
-
-    exercises.push(exercise);
-
-    res.json({
-      username: user.username,
-      description: exercise.description,
-      duration: exercise.duration,
-      date: exercise.date.toDateString(),
-      _id: user._id
-    });
-  } catch (error) {
-    console.error('Error creating exercise:', error);
-    res.status(500).json({ error: 'Server error' });
   }
-});
-
-app.get('/users/:_id/logs', async (req, res) => {
-  try {
-    const { _id } = req.params;
-    const { from, to, limit } = req.query;
-
-    const user = users.find(u => u._id === _id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    let userExercises = exercises.filter(e => e.userId === _id);
-
-    if (from || to) {
-      userExercises = userExercises.filter(exercise => {
-        const exerciseDate = new Date(exercise.date);
-        if (from && exerciseDate < new Date(from)) return false;
-        if (to && exerciseDate > new Date(to)) return false;
-        return true;
-      });
-    }
-
-    if (limit) {
-      userExercises = userExercises.slice(0, parseInt(limit));
-    }
-
-    const log = userExercises.map(exercise => ({
-      description: exercise.description,
-      duration: exercise.duration,
-      date: exercise.date.toDateString()
-    }));
-
-    res.json({
-      username: user.username,
-      count: userExercises.length,
-      _id: user._id,
-      log
-    });
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    res.status(500).json({ error: 'Server error' });
+  
+  if (path === '/api/test') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ 
+        message: 'API is working!',
+        method: httpMethod,
+        path: path,
+        timestamp: new Date().toISOString()
+      })
+    };
   }
-});
+  
+  if (path === '/api/users' && httpMethod === 'GET') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(users)
+    };
+  }
+  
+  if (path === '/api/users' && httpMethod === 'POST') {
+    try {
+      const { username } = parsedBody;
+      
+      if (!username) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Username is required' })
+        };
+      }
 
-// Health check route
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    message: 'API is working with in-memory storage'
-  });
-});
+      const existingUser = users.find(u => u.username === username);
+      if (existingUser) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Username already exists' })
+        };
+      }
 
-// Test route
-app.get('/test', (req, res) => {
-  res.json({ 
-    message: 'API is working!',
-    method: req.method,
-    path: req.path,
-    timestamp: new Date().toISOString()
-  });
-});
+      const user = {
+        username: username,
+        _id: Date.now().toString()
+      };
+      
+      users.push(user);
 
-// Export the handler
-exports.handler = serverless(app); 
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          username: user.username,
+          _id: user._id
+        })
+      };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server error' })
+      };
+    }
+  }
+  
+  // Handle /users/:_id/exercises
+  if (path.match(/^\/api\/users\/[^\/]+\/exercises$/) && httpMethod === 'POST') {
+    try {
+      const userId = path.split('/')[3]; // Extract user ID from path
+      const { description, duration, date } = parsedBody;
+
+      if (!description || !duration) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Description and duration are required' })
+        };
+      }
+
+      const user = users.find(u => u._id === userId);
+      if (!user) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'User not found' })
+        };
+      }
+
+      const exercise = {
+        userId: userId,
+        description,
+        duration: parseInt(duration),
+        date: date ? new Date(date) : new Date(),
+        _id: Date.now().toString()
+      };
+
+      exercises.push(exercise);
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          username: user.username,
+          description: exercise.description,
+          duration: exercise.duration,
+          date: exercise.date.toDateString(),
+          _id: user._id
+        })
+      };
+    } catch (error) {
+      console.error('Error creating exercise:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server error' })
+      };
+    }
+  }
+  
+  // Handle /users/:_id/logs
+  if (path.match(/^\/api\/users\/[^\/]+\/logs$/) && httpMethod === 'GET') {
+    try {
+      const userId = path.split('/')[3]; // Extract user ID from path
+      const { from, to, limit } = queryStringParameters || {};
+
+      const user = users.find(u => u._id === userId);
+      if (!user) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'User not found' })
+        };
+      }
+
+      let userExercises = exercises.filter(e => e.userId === userId);
+
+      if (from || to) {
+        userExercises = userExercises.filter(exercise => {
+          const exerciseDate = new Date(exercise.date);
+          if (from && exerciseDate < new Date(from)) return false;
+          if (to && exerciseDate > new Date(to)) return false;
+          return true;
+        });
+      }
+
+      if (limit) {
+        userExercises = userExercises.slice(0, parseInt(limit));
+      }
+
+      const log = userExercises.map(exercise => ({
+        description: exercise.description,
+        duration: exercise.duration,
+        date: exercise.date.toDateString()
+      }));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          username: user.username,
+          count: userExercises.length,
+          _id: user._id,
+          log
+        })
+      };
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server error' })
+      };
+    }
+  }
+  
+  // Default response for unmatched routes
+  return {
+    statusCode: 404,
+    headers,
+    body: JSON.stringify({ 
+      error: 'Route not found',
+      path: path,
+      method: httpMethod
+    })
+  };
+}; 
