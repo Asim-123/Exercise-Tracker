@@ -9,23 +9,42 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch((err) => {
-  console.error('MongoDB connection error:', err);
-});
-
 // Import models
 const User = require('../../models/User');
 const Exercise = require('../../models/Exercise');
 
+// Connect to MongoDB with better error handling
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) return;
+  
+  try {
+    if (!process.env.MONGO_URI) {
+      console.error('MONGO_URI environment variable is not set');
+      return;
+    }
+    
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    isConnected = true;
+    console.log('Connected to MongoDB');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+  }
+};
+
 // API routes
 app.post('/users', async (req, res) => {
   try {
+    await connectDB();
+    
+    if (!isConnected) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+    
     const { username } = req.body;
     
     if (!username) {
@@ -45,21 +64,35 @@ app.post('/users', async (req, res) => {
       _id: user._id
     });
   } catch (error) {
+    console.error('Error creating user:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.get('/users', async (req, res) => {
   try {
+    await connectDB();
+    
+    if (!isConnected) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+    
     const users = await User.find({}, 'username _id');
     res.json(users);
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.post('/users/:_id/exercises', async (req, res) => {
   try {
+    await connectDB();
+    
+    if (!isConnected) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+    
     const { _id } = req.params;
     const { description, duration, date } = req.body;
 
@@ -89,12 +122,19 @@ app.post('/users/:_id/exercises', async (req, res) => {
       _id: user._id
     });
   } catch (error) {
+    console.error('Error creating exercise:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.get('/users/:_id/logs', async (req, res) => {
   try {
+    await connectDB();
+    
+    if (!isConnected) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+    
     const { _id } = req.params;
     const { from, to, limit } = req.query;
 
@@ -130,8 +170,18 @@ app.get('/users/:_id/logs', async (req, res) => {
       log
     });
   } catch (error) {
+    console.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    mongoConnected: isConnected
+  });
 });
 
 module.exports.handler = serverless(app); 
